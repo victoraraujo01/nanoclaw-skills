@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+
+  @page { size: A4; margin: 2.2cm 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #1e3a5f;
+    --accent2: #f0813a;
+    --accent-light: #e8eef5;
+    --text: #18181b;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --surface: #fafafa;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 10pt;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* ── Cover ── */
+  .cover {
+    background: var(--accent);
+    color: white;
+    padding: 2.5em 2em 2em;
+    border-radius: 10px;
+    margin-bottom: 2em;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: rgba(240,129,58,0.2);
+  }
+  .cover .tag {
+    display: inline-block;
+    background: var(--accent2);
+    color: white;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 999px;
+    margin-bottom: .8em;
+  }
+  .cover h1 { font-size: 22pt; font-weight: 700; line-height: 1.2; }
+  .cover p  { color: rgba(255,255,255,0.7); margin-top: .4em; font-size: 10pt; }
+
+  /* ── Cards ── */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; margin: 1.2em 0; }
+  .cards.two { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .9em 1em;
+    border-top: 3px solid var(--accent2);
+  }
+  .card .card-label { font-size: 8pt; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2em; }
+  .card .card-value { font-size: 16pt; font-weight: 700; color: var(--accent); }
+  .card .card-sub   { font-size: 8.5pt; color: var(--muted); margin-top: .15em; }
+
+  /* ── Numbered section headings ── */
+  h2 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 1.8em 0 .7em;
+    display: flex;
+    align-items: center;
+    gap: .5em;
+  }
+  h2 .num {
+    background: var(--accent2);
+    color: white;
+    border-radius: 50%;
+    width: 1.6em; height: 1.6em;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9pt; font-weight: 700; flex-shrink: 0;
+  }
+  h2::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  h3 { font-size: 10.5pt; font-weight: 600; margin: 1.2em 0 .3em; color: var(--accent); }
+
+  /* ── Timeline ── */
+  .timeline { margin: 1em 0; }
+  .tl-item  { display: flex; gap: 1em; padding-bottom: .9em; position: relative; }
+  .tl-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 1.05em; top: 1.8em; bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .tl-dot {
+    width: 2.1em; height: 2.1em; min-width: 2.1em;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 10pt;
+  }
+  .tl-body .tl-title { font-weight: 600; margin-bottom: .1em; }
+  .tl-body .tl-desc  { font-size: 9pt; color: var(--muted); }
+
+  /* ── Status badges ── */
+  .badge {
+    display: inline-block;
+    font-size: 8pt;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .badge-ok   { background: #dcfce7; color: #15803d; }
+  .badge-warn { background: #fef9c3; color: #854d0e; }
+  .badge-info { background: var(--accent-light); color: var(--accent); }
+  .badge-err  { background: #fee2e2; color: #b91c1c; }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent2);
+    padding: .7em 1em;
+    border-radius: 0 6px 6px 0;
+    margin: .8em 0;
+    font-size: 9.5pt;
+  }
+
+  /* ── Code ── */
+  code {
+    background: #f4f4f5;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 8.5pt;
+    color: var(--accent);
+  }
+  pre {
+    background: #18181b;
+    color: #e4e4e7;
+    border-radius: 6px;
+    padding: .8em 1em;
+    font-size: 8.5pt;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    margin: .8em 0;
+    page-break-inside: avoid;
+  }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: .8em 0; font-size: 9.5pt; }
+  thead tr { background: var(--accent); color: white; }
+  th { padding: 7px 10px; text-align: left; font-weight: 600; font-size: 9pt; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--surface); }
+
+  /* ── Lists ── */
+  ul, ol { padding-left: 1.2em; margin: .4em 0 .6em; }
+  li { margin-bottom: .25em; }
+  p  { margin-bottom: .5em; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 2.5em;
+    padding-top: .8em;
+    border-top: 2px solid var(--accent);
+    font-size: 8pt;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer strong { color: var(--accent); }
+
+  /* ── Page breaks ── */
+  h2 { page-break-after: avoid; }
+  tr, .tl-item, .card { page-break-inside: avoid; }
+  .page-break { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<!-- SUBSTITUA: tag, título, subtítulo -->
+<div class="cover">
+  <span class="tag">Relatório de Sessão</span>
+  <h1>Título do Relatório</h1>
+  <p>Data · Participantes</p>
+</div>
+
+<!-- SUBSTITUA: métricas (label, value, sub) — use .cards.two para 2 colunas -->
+<div class="cards">
+  <div class="card">
+    <div class="card-label">Métrica 1</div>
+    <div class="card-value">—</div>
+    <div class="card-sub">descrição</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Métrica 2</div>
+    <div class="card-value">—</div>
+    <div class="card-sub">descrição</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Métrica 3</div>
+    <div class="card-value">—</div>
+    <div class="card-sub">descrição</div>
+  </div>
+</div>
+
+<!-- SUBSTITUA: seções — copie o bloco h2+conteúdo quantas vezes precisar -->
+<h2><span class="num">1</span> Nome da Seção</h2>
+<p>Conteúdo da seção.</p>
+<ul>
+  <li>Item 1</li>
+  <li>Item 2</li>
+</ul>
+
+<!-- Exemplo de timeline dentro de uma seção -->
+<div class="timeline">
+  <div class="tl-item">
+    <div class="tl-dot">①</div>
+    <div class="tl-body">
+      <div class="tl-title">Passo 1</div>
+      <div class="tl-desc">Descrição do passo</div>
+    </div>
+  </div>
+  <div class="tl-item">
+    <div class="tl-dot">②</div>
+    <div class="tl-body">
+      <div class="tl-title">Passo 2</div>
+      <div class="tl-desc">Descrição do passo</div>
+    </div>
+  </div>
+</div>
+
+<!-- Exemplo de callout -->
+<div class="callout">
+  💡 Informação importante ou aviso.
+</div>
+
+<!-- Exemplo de tabela com badges -->
+<h2><span class="num">2</span> Resultados</h2>
+<table>
+  <thead><tr><th>Item</th><th>Status</th><th>Observação</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Item A</td>
+      <td><span class="badge badge-ok">✓ OK</span></td>
+      <td>Descrição</td>
+    </tr>
+    <tr>
+      <td>Item B</td>
+      <td><span class="badge badge-warn">⚠ Pendente</span></td>
+      <td>Descrição</td>
+    </tr>
+    <tr>
+      <td>Item C</td>
+      <td><span class="badge badge-info">ℹ Info</span></td>
+      <td>Descrição</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- SUBSTITUA: nome do documento e data -->
+<div class="footer">
+  <span><strong>Nome do Documento</strong> · Data</span>
+  <span>Gerado automaticamente pelo agente Claw</span>
+</div>
+
+</body>
+</html>

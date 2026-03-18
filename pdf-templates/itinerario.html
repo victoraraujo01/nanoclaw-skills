@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+
+  @page { size: A4; margin: 2.2cm 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #1e3a5f;
+    --accent2: #f0813a;
+    --accent-light: #e8eef5;
+    --text: #18181b;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --surface: #fafafa;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 10pt;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* ── Cover ── */
+  .cover {
+    background: var(--accent);
+    color: white;
+    padding: 2.5em 2em 2em;
+    border-radius: 10px;
+    margin-bottom: 2em;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    left: -60px; bottom: -60px;
+    width: 250px; height: 250px;
+    border-radius: 50%;
+    background: rgba(240,129,58,0.15);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    right: -40px; top: -40px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  .cover .tag {
+    display: inline-block;
+    background: var(--accent2);
+    color: white;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 12px;
+    border-radius: 999px;
+    margin-bottom: .8em;
+  }
+  .cover h1 { font-size: 24pt; font-weight: 700; line-height: 1.2; }
+  .cover .cover-sub { color: rgba(255,255,255,0.7); margin-top: .4em; font-size: 10pt; }
+
+  /* ── Overview cards ── */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; margin: 1.2em 0; }
+  .cards.four { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .9em 1em;
+    border-top: 3px solid var(--accent2);
+  }
+  .card .card-label { font-size: 8pt; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2em; }
+  .card .card-value { font-size: 15pt; font-weight: 700; color: var(--accent); line-height: 1.2; }
+  .card .card-sub   { font-size: 8.5pt; color: var(--muted); margin-top: .2em; }
+
+  /* ── Section headings ── */
+  h2 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 1.8em 0 .7em;
+    display: flex;
+    align-items: center;
+    gap: .5em;
+  }
+  h2 .icon { font-size: 13pt; }
+  h2::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Day timeline ── */
+  .timeline { margin: 1em 0; }
+  .tl-item  { display: flex; gap: 1em; padding-bottom: 1em; position: relative; }
+  .tl-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 1.1em; top: 2em; bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .tl-dot {
+    width: 2.2em; height: 2.2em; min-width: 2.2em;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 8.5pt; font-weight: 700;
+  }
+  .tl-body { flex: 1; }
+  .tl-body .tl-date  { font-size: 8pt; color: var(--muted); margin-bottom: .1em; }
+  .tl-body .tl-title { font-weight: 600; font-size: 10.5pt; margin-bottom: .2em; }
+  .tl-body .tl-desc  { font-size: 9pt; color: var(--muted); }
+  .tl-body ul { padding-left: 1.1em; margin: .3em 0; }
+  .tl-body li { font-size: 9pt; color: var(--muted); margin-bottom: .1em; }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent2);
+    padding: .7em 1em;
+    border-radius: 0 6px 6px 0;
+    margin: .8em 0;
+    font-size: 9.5pt;
+  }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: .8em 0; font-size: 9.5pt; }
+  thead tr { background: var(--accent); color: white; }
+  th { padding: 7px 10px; text-align: left; font-weight: 600; font-size: 9pt; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--surface); }
+  .total-row td { font-weight: 700; color: var(--accent); border-top: 2px solid var(--accent); }
+
+  /* ── Lists ── */
+  ul, ol { padding-left: 1.2em; margin: .4em 0 .6em; }
+  li { margin-bottom: .25em; }
+  p  { margin-bottom: .5em; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 2.5em;
+    padding-top: .8em;
+    border-top: 2px solid var(--accent);
+    font-size: 8pt;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer strong { color: var(--accent); }
+
+  /* ── Page breaks ── */
+  h2 { page-break-after: avoid; }
+  tr, .tl-item, .card { page-break-inside: avoid; }
+  .page-break { page-break-after: always; }
+</style>
+</head>
+<body>
+
+<!-- SUBSTITUA: destino, datas, participantes -->
+<div class="cover">
+  <span class="tag">Roteiro de Viagem</span>
+  <h1>Destino</h1>
+  <p class="cover-sub">Datas · Participantes</p>
+</div>
+
+<!-- SUBSTITUA: duração, orçamento, destinos, voos -->
+<div class="cards four">
+  <div class="card">
+    <div class="card-label">Duração</div>
+    <div class="card-value">— dias</div>
+    <div class="card-sub">noites</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Orçamento est.</div>
+    <div class="card-value">R$ —</div>
+    <div class="card-sub">por pessoa</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Destinos</div>
+    <div class="card-value">—</div>
+    <div class="card-sub">cidades</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Pessoas</div>
+    <div class="card-value">—</div>
+    <div class="card-sub">viajantes</div>
+  </div>
+</div>
+
+<!-- ROTEIRO DIA A DIA -->
+<h2><span class="icon">🗓</span> Roteiro</h2>
+<div class="timeline">
+
+  <!-- SUBSTITUA: repita este bloco para cada dia -->
+  <div class="tl-item">
+    <div class="tl-dot">D1</div>
+    <div class="tl-body">
+      <div class="tl-date">Data · Cidade</div>
+      <div class="tl-title">Nome do dia / tema</div>
+      <div class="tl-desc">Descrição geral do dia.</div>
+      <ul>
+        <li>Atividade 1</li>
+        <li>Atividade 2</li>
+        <li>Refeições: almoço em X, jantar em Y</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tl-item">
+    <div class="tl-dot">D2</div>
+    <div class="tl-body">
+      <div class="tl-date">Data · Cidade</div>
+      <div class="tl-title">Nome do dia / tema</div>
+      <div class="tl-desc">Descrição geral do dia.</div>
+      <ul>
+        <li>Atividade 1</li>
+        <li>Atividade 2</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<!-- DICAS IMPORTANTES -->
+<div class="callout">
+  💡 SUBSTITUA: dicas importantes, alertas, reservas antecipadas necessárias.
+</div>
+
+<!-- CUSTOS -->
+<h2><span class="icon">💰</span> Custos Estimados</h2>
+<table>
+  <thead>
+    <tr><th>Categoria</th><th>Custo (por pessoa)</th><th>Observação</th></tr>
+  </thead>
+  <tbody>
+    <!-- SUBSTITUA: linhas de custo -->
+    <tr><td>Passagens</td><td>R$ —</td><td>Ida e volta</td></tr>
+    <tr><td>Hospedagem</td><td>R$ —</td><td>— noites</td></tr>
+    <tr><td>Alimentação</td><td>R$ —</td><td>Estimativa diária</td></tr>
+    <tr><td>Passeios</td><td>R$ —</td><td>Ingressos e tours</td></tr>
+    <tr><td>Transporte local</td><td>R$ —</td><td>Traslados e deslocamentos</td></tr>
+    <tr class="total-row"><td>Total estimado</td><td>R$ —</td><td></td></tr>
+  </tbody>
+</table>
+
+<!-- SUBSTITUA: destino e datas -->
+<div class="footer">
+  <span><strong>Roteiro — Destino</strong> · Datas</span>
+  <span>Gerado automaticamente pelo agente Claw</span>
+</div>
+
+</body>
+</html>
