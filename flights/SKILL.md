@@ -7,7 +7,76 @@ allowed-tools: [Bash, Read, Write, Edit]
 
 # Google Flights Price Tracker
 
-You manage a trip watchlist and search Google Flights for the cheapest tickets. The trip list is stored in `trips.json` at the project root. The search engine is `/home/node/.claude/skills/flights/search_flights.py`.
+Two modes: **direct query** (instant, one-off — no trips.json needed) and **watchlist** (saved trips, periodic checks).
+
+The search engine is `/home/node/.claude/skills/flights/search_flights.py`.
+
+---
+
+## Mode 1: Direct Query (for itinerary building)
+
+Use when the user wants immediate flight prices without saving to the watchlist. No trips.json required.
+
+### Natural language examples:
+- "quanto custa voo GIG→FCO em novembro, 2 adultos?"
+- "passagem Rio→Cartagena de 8 a 10 de novembro, ida e volta ~7 dias"
+- "voo direto GIG→CTG no dia 8 de novembro"
+- "voos GIG para Roma no dia 8/11, volta 19/11"
+
+### Single date (all flight options for one departure):
+```bash
+python3 /home/node/.claude/skills/flights/search_flights.py \
+  --origin GIG --destination FCO \
+  --date-start "2026-11-08" \
+  --return "2026-11-19" \
+  --passengers 2 --seat economy \
+  --label "Rio → Roma Nov/26" \
+  | python3 /home/node/.claude/skills/flights/format_whatsapp.py
+```
+→ Returns `mode: detail` — all available flights for that date combination.
+
+### Date window (cheapest combination across a range):
+```bash
+python3 /home/node/.claude/skills/flights/search_flights.py \
+  --origin GIG --destination CTG \
+  --date-start "2026-11-01" --date-end "2026-11-15" \
+  --trip-length-min 7 --trip-length-max 10 \
+  --passengers 2 --seat economy \
+  --label "Rio → Cartagena Nov/26" \
+  | python3 /home/node/.claude/skills/flights/format_whatsapp.py
+```
+→ Returns `mode: summary` — best price per date combination.
+
+### One-way flight:
+```bash
+python3 /home/node/.claude/skills/flights/search_flights.py \
+  --origin GIG --destination FCO \
+  --date-start "2026-11-08" \
+  --trip-type one-way \
+  --passengers 2 \
+  | python3 /home/node/.claude/skills/flights/format_whatsapp.py
+```
+
+### Direct query parameters:
+| Arg | Description | Default |
+|-----|-------------|---------|
+| `--origin` | Origin airport IATA code | required |
+| `--destination` | Destination IATA code | required |
+| `--date-start` | First/only departure date (YYYY-MM-DD) | required |
+| `--date-end` | Last departure date for window search | same as `--date-start` |
+| `--return` | Return date for single-date round-trip | — |
+| `--trip-length-min` | Min trip duration in days (window mode) | 7 |
+| `--trip-length-max` | Max trip duration in days (window mode) | same as min |
+| `--trip-type` | `one-way` or `round-trip` | inferred |
+| `--passengers` | Number of adult passengers | 1 |
+| `--seat` | `economy`, `premium-economy`, `business`, `first` | economy |
+| `--label` | Label shown in output | origin→destination |
+
+---
+
+## Mode 2: Watchlist (periodic tracking)
+
+You manage a trip watchlist and search Google Flights for the cheapest tickets. The trip list is stored in `trips.json` at the project root.
 
 ## Trip Management
 

@@ -317,15 +317,101 @@ def search_detail(trip: dict, departure: str, return_date: str | None) -> dict:
     }
 
 
+def build_direct_trip(args) -> dict:
+    """Build an ad-hoc trip dict from direct-mode CLI args (no trips.json needed)."""
+    trip_type = args.trip_type or ("one-way" if not args.return_date and not args.date_end else "round-trip")
+    trip_length_min = args.trip_length_min or 7
+    trip_length_max = args.trip_length_max or trip_length_min
+
+    date_start = args.date_start or args.departure
+    date_end = args.date_end or date_start
+
+    label = args.label or f"{args.origin}→{args.destination}"
+
+    return {
+        "id": 0,
+        "type": trip_type,
+        "origin": args.origin.upper(),
+        "destination": args.destination.upper(),
+        "date_window_start": date_start,
+        "date_window_end": date_end,
+        "trip_length_min": trip_length_min,
+        "trip_length_max": trip_length_max,
+        "passengers": args.passengers,
+        "seat_class": args.seat,
+        "label": label,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Google Flights price search")
+
+    # Watchlist/detail mode args (existing)
     parser.add_argument("--detail", action="store_true", help="Fetch all flights for a specific date combination")
-    parser.add_argument("--trip-id", type=int, help="Trip ID (required for --detail)")
-    parser.add_argument("--departure", help="Departure date YYYY-MM-DD (required for --detail)")
-    parser.add_argument("--return", dest="return_date", help="Return date YYYY-MM-DD (for round-trips)")
+    parser.add_argument("--trip-id", type=int, help="Trip ID (for --detail with watchlist)")
+    parser.add_argument("--departure", help="Departure date YYYY-MM-DD")
+    parser.add_argument("--return", dest="return_date", help="Return date YYYY-MM-DD")
+
+    # Direct query mode args (new)
+    parser.add_argument("--origin", help="Origin airport IATA code (direct mode)")
+    parser.add_argument("--destination", help="Destination airport IATA code (direct mode)")
+    parser.add_argument("--date-start", help="First departure date YYYY-MM-DD (direct mode window)")
+    parser.add_argument("--date-end", help="Last departure date YYYY-MM-DD (direct mode window)")
+    parser.add_argument("--trip-length-min", type=int, help="Min trip length in days (round-trip window)")
+    parser.add_argument("--trip-length-max", type=int, help="Max trip length in days (round-trip window)")
+    parser.add_argument("--passengers", type=int, default=1, help="Number of adult passengers (default: 1)")
+    parser.add_argument("--seat", default="economy", choices=["economy", "premium-economy", "business", "first"])
+    parser.add_argument("--trip-type", dest="trip_type", choices=["one-way", "round-trip"])
+    parser.add_argument("--label", help="Human-readable label for the search")
+
     args = parser.parse_args()
 
-    if args.detail:
+    is_direct = bool(args.origin and args.destination)
+
+    if is_direct:
+        # ── Direct query mode ────────────────────────────────────
+        if not (args.date_start or args.departure):
+            parser.error("Direct mode requires --date-start (or --departure for single date)")
+
+        trip = build_direct_trip(args)
+        date_start = trip["date_window_start"]
+        date_end = trip["date_window_end"]
+
+        if date_start == date_end and args.return_date:
+            # Single departure date + specific return → detail mode output
+            result = search_detail(trip, date_start, args.return_date)
+            report = {
+                "mode": "detail",
+                "search_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "trip": result,
+                "errors": [],
+            }
+        elif date_start == date_end and trip["type"] == "one-way":
+            # Single date, one-way → detail mode output
+            result = search_detail(trip, date_start, None)
+            report = {
+                "mode": "detail",
+                "search_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "trip": result,
+                "errors": [],
+            }
+        else:
+            # Date window → summary mode output
+            combos = generate_combinations(trip)
+            est_time = len(combos) * 3.5
+            print(f"Direct search: {trip['origin']}→{trip['destination']}, {len(combos)} combination(s)", file=sys.stderr)
+            print(f"Estimated time: ~{int(est_time)}s", file=sys.stderr)
+            result = search_trip(trip)
+            errors = result.pop("errors", [])
+            report = {
+                "mode": "summary",
+                "search_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "trips": [result],
+                "errors": errors,
+            }
+
+    elif args.detail:
+        # ── Detail mode (existing, requires --trip-id) ───────────
         if not args.trip_id or not args.departure:
             parser.error("--detail requires --trip-id and --departure")
         try:
@@ -348,7 +434,9 @@ def main():
             "trip": result,
             "errors": [],
         }
+
     else:
+        # ── Watchlist summary mode (existing) ────────────────────
         trips = load_trips()
         total_combos = sum(len(generate_combinations(t)) for t in trips)
         est_time = total_combos * 3.5
