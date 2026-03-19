@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Live exchange rate CLI using frankfurter.app (free, no API key).
+
+Usage:
+  exchange USD BRL          → 5.2987  (single rate)
+  exchange USD BRL EUR GBP  → JSON with all rates
+  exchange --json USD BRL   → {"USD_BRL": 5.2987, "date": "2026-03-19"}
+  exchange --rate USD BRL   → 5.2987  (same as no flags, explicit)
+
+Cache: /tmp/exchange_cache.json  (TTL: 6 hours)
+"""
+
+import json
+import sys
+import time
+from pathlib import Path
+
+try:
+    import httpx as _http
+    def _get(url):
+        return _http.get(url, headers={"User-Agent": "curl/8.0"}, timeout=5).json()
+except ImportError:
+    from urllib.request import Request, urlopen
+    def _get(url):
+        req = Request(url, headers={"User-Agent": "curl/8.0"})
+        with urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+
+CACHE_FILE = Path("/tmp/exchange_cache.json")
+CACHE_TTL = 6 * 3600  # 6 hours
+API_BASE = "https://api.frankfurter.app/latest"
+
+
+def load_cache() -> dict:
+    try:
+        if CACHE_FILE.exists():
+            data = json.loads(CACHE_FILE.read_text())
+            if time.time() - data.get("_ts", 0) < CACHE_TTL:
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def save_cache(cache: dict):
+    try:
+        cache["_ts"] = time.time()
+        CACHE_FILE.write_text(json.dumps(cache))
+    except Exception:
+        pass
+
+
+def fetch_rate(base: str, targets: list[str]) -> dict:
+    """Fetch rates from API or cache. Returns {TARGET: rate, ...}."""
+    cache = load_cache()
+    cache_key = f"{base}_{'_'.join(sorted(targets))}"
+
+    if cache_key in cache:
+        return cache[cache_key]
+
+    to_param = ",".join(targets)
+    url = f"{API_BASE}?from={base}&to={to_param}"
+    try:
+        data = _get(url)
+        rates = data["rates"]
+        cache[cache_key] = rates
+        save_cache(cache)
+        return rates
+    except Exception:
+        stale = load_stale_cache(base, targets)
+        if stale:
+            print(f"[exchange] aviso: usando cache antigo (sem conexão)", file=sys.stderr)
+            return stale
+        raise
+
+
+def load_stale_cache(base: str, targets: list[str]) -> dict | None:
+    """Load cache ignoring TTL (network fallback)."""
+    try:
+        if CACHE_FILE.exists():
+            data = json.loads(CACHE_FILE.read_text())
+            cache_key = f"{base}_{'_'.join(sorted(targets))}"
+            return data.get(cache_key)
+    except Exception:
+        pass
+    return None
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    flags = [a for a in sys.argv[1:] if a.startswith("-")]
+    json_mode = "--json" in flags
+
+    if len(args) < 2:
+        print("Uso: exchange FROM TO [TO2 ...]", file=sys.stderr)
+        print("Ex:  exchange USD BRL", file=sys.stderr)
+        print("Ex:  exchange USD BRL EUR GBP", file=sys.stderr)
+        sys.exit(1)
+
+    base = args[0].upper()
+    targets = [t.upper() for t in args[1:]]
+
+    try:
+        rates = fetch_rate(base, targets)
+    except Exception as e:
+        print(f"[exchange] erro: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if json_mode:
+        out = {f"{base}_{t}": rates.get(t) for t in targets}
+        print(json.dumps(out))
+    elif len(targets) == 1:
+        rate = rates.get(targets[0])
+        if rate is None:
+            print(f"[exchange] par {base}/{targets[0]} não encontrado", file=sys.stderr)
+            sys.exit(1)
+        print(rate)
+    else:
+        for t in targets:
+            rate = rates.get(t, "N/A")
+            print(f"{base}/{t}: {rate}")
+
+
+if __name__ == "__main__":
+    main()

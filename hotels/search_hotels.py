@@ -23,8 +23,24 @@ except ImportError:
 
 HOTELS_FILE = Path(__file__).parent / "hotels.json"
 
-# BRL/USD exchange rate (update periodically)
-USD_TO_BRL = 5.19
+
+def get_usd_to_brl() -> float:
+    """Fetch live USD→BRL rate via `exchange` CLI. Falls back to hardcoded value."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["exchange", "USD", "BRL"],
+            capture_output=True, text=True, timeout=8
+        )
+        if result.returncode == 0:
+            rate = float(result.stdout.strip())
+            print(f"  Taxa de câmbio: 1 USD = R${rate:.4f} (ao vivo)", file=sys.stderr)
+            return rate
+    except Exception:
+        pass
+    fallback = 5.19
+    print(f"  Taxa de câmbio: 1 USD = R${fallback} (fallback)", file=sys.stderr)
+    return fallback
 
 
 @dataclass
@@ -53,9 +69,12 @@ def nights(checkin: str, checkout: str) -> int:
     return (d2 - d1).days
 
 
-def search_one(query: SearchQuery, limit: int = 20) -> dict:
+def search_one(query: SearchQuery, limit: int = 20, usd_to_brl: float | None = None) -> dict:
     """Run a single hotel search and return structured results."""
     print(f"  Buscando: {query.location} ({query.checkin} → {query.checkout}, {query.adults} adultos)...", file=sys.stderr)
+
+    if usd_to_brl is None:
+        usd_to_brl = get_usd_to_brl()
 
     n = nights(query.checkin, query.checkout)
 
@@ -88,7 +107,7 @@ def search_one(query: SearchQuery, limit: int = 20) -> dict:
 
         price_total_usd = h.price
         price_per_night_usd = price_total_usd / n if n > 0 else price_total_usd
-        price_per_night_brl = price_per_night_usd * USD_TO_BRL
+        price_per_night_brl = price_per_night_usd * usd_to_brl
 
         hotels.append({
             "name": h.name,
@@ -113,7 +132,7 @@ def search_one(query: SearchQuery, limit: int = 20) -> dict:
             "label": query.label,
         },
         "nights": n,
-        "usd_to_brl": USD_TO_BRL,
+        "usd_to_brl": usd_to_brl,
         "hotels": hotels,
     }
 
@@ -133,6 +152,9 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # Fetch exchange rate once for all searches
+    usd_to_brl = get_usd_to_brl()
 
     results = []
 
@@ -154,7 +176,7 @@ def main():
                 label=entry.get("label", ""),
                 filters=entry.get("filters", []),
             )
-            results.append(search_one(q, limit=args.limit))
+            results.append(search_one(q, limit=args.limit, usd_to_brl=usd_to_brl))
     else:
         # Direct query mode
         if not args.checkin or not args.checkout:
@@ -170,7 +192,7 @@ def main():
             label=args.label or args.location,
             filters=[],
         )
-        results.append(search_one(q, limit=args.limit))
+        results.append(search_one(q, limit=args.limit, usd_to_brl=usd_to_brl))
 
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
