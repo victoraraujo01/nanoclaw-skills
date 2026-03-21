@@ -36,11 +36,12 @@ def format_result(res: dict) -> str:
     rate = res.get("usd_to_brl", 5.19)
     error = res.get("error")
 
-    label = q.get("label") or q["location"]
+    label = q.get("label") or q.get("location") or q.get("hotel", "Hotel")
+    adults = q.get("adults", 2)
     lines = []
     lines.append(f"┌─────────────────────────────────┐")
     lines.append(f"  📍 {label.upper()}")
-    lines.append(f"  {q['checkin']} → {q['checkout']}  ({n} noite{'s' if n != 1 else ''})  {q['adults']} adulto{'s' if q['adults'] != 1 else ''}")
+    lines.append(f"  {q['checkin']} → {q['checkout']}  ({n} noite{'s' if n != 1 else ''})  {adults} adulto{'s' if adults != 1 else ''}")
     lines.append(f"  Câmbio: 1 USD = R${rate:.2f}")
     lines.append(f"└─────────────────────────────────┘")
 
@@ -52,8 +53,11 @@ def format_result(res: dict) -> str:
         lines.append("  Nenhum hotel encontrado com os filtros aplicados.")
         return "\n".join(lines)
 
+    mode = res.get("mode", "generic")
     min_stars = q.get("min_stars", 0)
-    if min_stars > 0:
+    if mode == "specific":
+        lines.append(f"  Modo: busca específica  |  Fonte: Google Hotels")
+    elif min_stars > 0:
         lines.append(f"  Filtro: {min_stars}★ mínimo  |  Fonte: Google Hotels")
     else:
         lines.append(f"  Fonte: Google Hotels")
@@ -66,15 +70,18 @@ def format_result(res: dict) -> str:
         rating = h["rating"]
 
         lines.append(f"  {i:2}. {h['name']}")
-        lines.append(f"      {stars_str(rating)} {rating:.1f}  |  {brl(per_night_brl)}/noite  ({usd(per_night_usd)})")
+        rating_str = f"{stars_str(rating)} {rating:.1f}" if rating else "sem avaliação"
+        lines.append(f"      {rating_str}  |  {brl(per_night_brl)}/noite  ({usd(per_night_usd)})")
         lines.append(f"      Total {n}n: {brl(total_brl)}")
 
     lines.append("")
     cheapest = min(hotels[:10], key=lambda x: x["price_per_night_brl"])
-    best = max(hotels[:10], key=lambda x: x["rating"])
     lines.append(f"  💰 Mais barato: {cheapest['name']} ({brl(cheapest['price_per_night_brl'])}/noite)")
-    if best["name"] != cheapest["name"]:
-        lines.append(f"  ⭐ Melhor avaliado: {best['name']} ({best['rating']:.1f}★)")
+    rated = [h for h in hotels[:10] if h.get("rating")]
+    if rated:
+        best = max(rated, key=lambda x: x["rating"])
+        if best["name"] != cheapest["name"]:
+            lines.append(f"  ⭐ Melhor avaliado: {best['name']} ({best['rating']:.1f}★)")
 
     return "\n".join(lines)
 
