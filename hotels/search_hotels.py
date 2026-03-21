@@ -87,6 +87,7 @@ def search_one(query: SearchQuery, limit: int = 20, usd_to_brl: float | None = N
             )],
             guests=Guests(adults=query.adults),
             limit=limit,
+            fetch_mode="local",
         )
     except Exception as e:
         print(f"  Erro ao buscar {query.location}: {e}", file=sys.stderr)
