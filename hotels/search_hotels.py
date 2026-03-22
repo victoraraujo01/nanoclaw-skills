@@ -353,6 +353,12 @@ async def _specific_async(
         await _accept_consent(page)
         await page.wait_for_timeout(3000)
 
+        # Extract main hotel image from og:image meta tag
+        image_url = None
+        og_img = await page.query_selector('meta[property="og:image"]')
+        if og_img:
+            image_url = await og_img.get_attribute("content")
+
         # Extract room types with discounted prices from the room table.
         # Each room row has a price cell with "Preço atual R$ X" (discounted) pattern.
         # We extract each room type name + its current price, building a per-room breakdown.
@@ -395,6 +401,7 @@ async def _specific_async(
                     "price_per_night_usd": round(pn / usd_to_brl, 2),
                     "total_brl": total_room_brl,
                     "url": hotel_url,
+                    "image_url": image_url,
                     "taxes_included": True,
                 })
         else:
@@ -423,6 +430,7 @@ async def _specific_async(
                 "price_per_night_usd": round(per_night_brl / usd_to_brl, 2),
                 "total_brl": total_brl,
                 "url": hotel_url,
+                "image_url": image_url,
                 "taxes_included": True,
             }]
 
