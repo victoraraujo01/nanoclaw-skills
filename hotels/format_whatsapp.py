@@ -53,21 +53,23 @@ def format_result(res: dict) -> str:
         lines.append("  Nenhum hotel encontrado com os filtros aplicados.")
         return "\n".join(lines)
 
+    source = res.get("source", "Booking.com")
     mode = res.get("mode", "generic")
     min_stars = q.get("min_stars", 0)
+    taxes_note = "  c/ impostos" if hotels and hotels[0].get("taxes_included") else ""
     if mode == "specific":
-        lines.append(f"  Modo: busca específica  |  Fonte: Google Hotels")
+        lines.append(f"  Modo: busca específica  |  Fonte: {source}{taxes_note}")
     elif min_stars > 0:
-        lines.append(f"  Filtro: {min_stars}★ mínimo  |  Fonte: Google Hotels")
+        lines.append(f"  Filtro: {min_stars}★ mínimo  |  Fonte: {source}{taxes_note}")
     else:
-        lines.append(f"  Fonte: Google Hotels")
+        lines.append(f"  Fonte: {source}{taxes_note}")
     lines.append("")
 
     for i, h in enumerate(hotels[:10], 1):
         per_night_brl = h["price_per_night_brl"]
         per_night_usd = h["price_per_night_usd"]
         total_brl = per_night_brl * n
-        rating = h["rating"]
+        rating = h.get("rating")
 
         lines.append(f"  {i:2}. {h['name']}")
         rating_str = f"{stars_str(rating)} {rating:.1f}" if rating else "sem avaliação"
