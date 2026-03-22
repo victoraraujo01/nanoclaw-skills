@@ -144,8 +144,11 @@ async def _extract_hotels_from_page(page, limit: int, min_stars: float, usd_to_b
                     raw_score = float(m.group(1).replace(",", "."))
                     rating = booking_score_to_stars(raw_score) if raw_score > 5 else raw_score
 
-            # Price — try data-testid selectors first
-            price_brl = None
+            # Price — collect ALL R$ values from the card and take the minimum.
+            # Booking.com shows crossed-out (higher) price first, then the real price.
+            # Taking the minimum avoids picking up the struck-through original price.
+            all_prices: list[float] = []
+
             for sel in [
                 '[data-testid="price-and-discounted-price"]',
                 '[data-testid="price"]',
@@ -154,23 +157,20 @@ async def _extract_hotels_from_page(page, limit: int, min_stars: float, usd_to_b
                 els = await card.query_selector_all(sel)
                 for el in els:
                     text = (await el.inner_text()).replace("\xa0", "")
-                    m = re.search(r'R\$\s*([\d.,]+)', text)
-                    if m:
+                    for m in re.finditer(r'R\$\s*([\d.,]+)', text):
                         val = parse_brl(m.group(1))
-                        if val and 80 <= val <= 500_000:
-                            price_brl = val
-                            break
-                if price_brl:
-                    break
+                        if val and 200 <= val <= 500_000:
+                            all_prices.append(val)
 
-            # Fallback: scan all text in card
-            if price_brl is None:
+            # Fallback: scan full card text
+            if not all_prices:
                 card_text = (await card.inner_text()).replace("\xa0", "")
                 for m in re.finditer(r'R\$\s*([\d.,]+)', card_text):
                     val = parse_brl(m.group(1))
-                    if val and 80 <= val <= 500_000:
-                        price_brl = val
-                        break
+                    if val and 200 <= val <= 500_000:
+                        all_prices.append(val)
+
+            price_brl = min(all_prices) if all_prices else None
 
             if price_brl is None:
                 continue
