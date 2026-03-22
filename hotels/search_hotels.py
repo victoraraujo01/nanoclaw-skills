@@ -175,10 +175,10 @@ async def _extract_hotels_from_page(page, limit: int, min_stars: float, usd_to_b
             if price_brl is None:
                 continue
 
-            # With sb_price_type=total, Booking.com shows the TOTAL for the stay.
-            # Divide by number of nights to get per-night price.
-            total_brl = price_brl
-            price_per_night_brl = round(price_brl / n, 2) if n > 0 else price_brl
+            # Cards display per-night prices even with sb_price_type=total in URL.
+            # (sb_price_type=total affects sorting, not the card display unit.)
+            price_per_night_brl = price_brl
+            total_brl = round(price_brl * n, 2)
             price_per_night_usd = round(price_per_night_brl / usd_to_brl, 2)
 
             # Apply rating filter
@@ -271,10 +271,15 @@ def search_one(location: str, checkin: str, checkout: str, adults: int,
 async def _specific_async(
     hotel_name: str, checkin: str, checkout: str, adults: int, usd_to_brl: float
 ) -> dict:
+    """Two-step specific search:
+    1. Search by name to find hotel's Booking.com page URL.
+    2. Navigate to hotel detail page and extract cheapest available room price.
+    This is more accurate than reading the card price in search results.
+    """
     from playwright.async_api import async_playwright
 
     n = nights(checkin, checkout)
-    url = _build_search_url(hotel_name, checkin, checkout, adults)
+    search_url = _build_search_url(hotel_name, checkin, checkout, adults)
     print(f"  Buscando hotel específico: {hotel_name} ({checkin} → {checkout})...", file=sys.stderr)
 
     async with async_playwright() as p:
@@ -288,12 +293,112 @@ async def _specific_async(
             ),
         )
         page = await context.new_page()
-        await page.goto(url, timeout=30000, wait_until="domcontentloaded")
+
+        # Step 1: search to find hotel URL
+        await page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
         await _accept_consent(page)
-        hotels = await _extract_hotels_from_page(page, 5, 0.0, usd_to_brl, n)
+        await page.wait_for_timeout(2000)
+
+        hotel_url = None
+        name_found = hotel_name
+        rating_found = None
+
+        try:
+            cards = await page.query_selector_all('[data-testid="property-card"]')
+            for card in cards[:10]:
+                name_el = await card.query_selector('[data-testid="title"]')
+                name_text = (await name_el.inner_text()).strip() if name_el else ""
+                # Pick first card whose name approximately matches
+                if any(w.lower() in name_text.lower() for w in hotel_name.split()[:2]):
+                    url_el = await card.query_selector('a[href*="/hotel/"]')
+                    if url_el:
+                        href = await url_el.get_attribute("href")
+                        hotel_url = (href if href.startswith("http") else BASE_URL + href).split("?")[0]
+                        name_found = name_text
+                        score_el = await card.query_selector('[data-testid="review-score"]')
+                        if score_el:
+                            m = re.search(r'(\d+[,\.]\d+|\d+)', await score_el.inner_text())
+                            if m:
+                                raw = float(m.group(1).replace(",", "."))
+                                rating_found = booking_score_to_stars(raw) if raw > 5 else raw
+                    break
+        except Exception as e:
+            print(f"  Aviso: erro ao encontrar hotel na busca: {e}", file=sys.stderr)
+
+        if not hotel_url:
+            print(f"  Hotel não encontrado via busca, usando resultados da lista", file=sys.stderr)
+            hotels = await _extract_hotels_from_page(page, 3, 0.0, usd_to_brl, n)
+            await browser.close()
+            hotels.sort(key=lambda x: (-(x.get("rating") or 0), x["price_per_night_brl"]))
+            return {
+                "mode": "specific", "source": "Booking.com",
+                "query": {"hotel": hotel_name, "checkin": checkin, "checkout": checkout, "adults": adults},
+                "nights": n, "usd_to_brl": usd_to_brl, "hotels": hotels[:3],
+            }
+
+        # Step 2: navigate to hotel detail page with dates
+        # Normalize URL: strip any locale suffix (.pt-br.html, .en-gb.html, .html)
+        # then append .pt-br.html for consistent locale
+        base = re.sub(r'\.[a-z]{2}-[a-z]{2}\.html$', '', hotel_url)
+        base = base.removesuffix(".html")
+        date_params = (
+            f"?checkin={checkin}&checkout={checkout}"
+            f"&group_adults={adults}&no_rooms=1"
+            f"&selected_currency=BRL&lang=pt-br"
+            f"&sb_price_type=total&type=total"
+        )
+        detail_url = base + ".pt-br.html" + date_params
+        print(f"  Navegando para: {detail_url}", file=sys.stderr)
+        await page.goto(detail_url, timeout=30000, wait_until="domcontentloaded")
+        await _accept_consent(page)
+        await page.wait_for_timeout(3000)
+
+        # Extract all R$ prices from the hotel page; take the minimum valid one
+        page_text = await page.evaluate("() => document.body.innerText")
+        all_prices = []
+        for m in re.finditer(r'R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
+            val = parse_brl(m.group(1))
+            # Reasonable range: per-night R$150 to R$50k, or total R$300 to R$200k
+            if val and 300 <= val <= 200_000:
+                all_prices.append(val)
+
         await browser.close()
 
-    hotels.sort(key=lambda x: (-(x.get("rating") or 0), x["price_per_night_brl"]))
+        if not all_prices:
+            return {
+                "mode": "specific", "source": "Booking.com",
+                "query": {"hotel": hotel_name, "checkin": checkin, "checkout": checkout, "adults": adults},
+                "nights": n, "usd_to_brl": usd_to_brl,
+                "hotels": [{"name": name_found, "rating": rating_found,
+                             "price_per_night_brl": 0, "price_per_night_usd": 0,
+                             "total_brl": 0, "error": "preço não encontrado", "taxes_included": True}],
+            }
+
+        # The minimum price on the hotel page is either per-night or total for stay.
+        # With sb_price_type=total, total prices appear; pick minimum and try to identify unit.
+        min_price = min(all_prices)
+
+        # Heuristic: if min_price is consistent with a per-night rate (< total/2), treat as total
+        # otherwise treat as per-night. Simpler: if min_price * n exists in prices, it's per-night.
+        total_brl = min_price
+        per_night_brl = round(min_price / n, 2) if n > 0 else min_price
+
+        # If a price equal to min_price * n also appears → min_price is per-night
+        expected_total = round(min_price * n, -1)  # round to nearest 10
+        totals_on_page = [v for v in all_prices if abs(v - expected_total) < expected_total * 0.05]
+        if totals_on_page:
+            per_night_brl = min_price
+            total_brl = round(min_price * n, 2)
+
+        hotels = [{
+            "name": name_found,
+            "rating": rating_found,
+            "price_per_night_brl": per_night_brl,
+            "price_per_night_usd": round(per_night_brl / usd_to_brl, 2),
+            "total_brl": total_brl,
+            "url": hotel_url,
+            "taxes_included": True,
+        }]
 
     return {
         "mode": "specific",
@@ -303,10 +408,11 @@ async def _specific_async(
             "checkin": checkin,
             "checkout": checkout,
             "adults": adults,
+            "label": name_found,
         },
         "nights": n,
         "usd_to_brl": usd_to_brl,
-        "hotels": hotels[:3],
+        "hotels": hotels,
     }
 
 
