@@ -20,6 +20,12 @@ from pathlib import Path
 HOTELS_FILE = Path(__file__).parent / "hotels.json"
 BASE_URL = "https://www.booking.com"
 
+# Use system Chromium if available (already installed in Docker image),
+# otherwise fall back to Playwright's bundled version.
+import os as _os
+_SYSTEM_CHROMIUM = "/usr/bin/chromium"
+CHROMIUM_PATH = _SYSTEM_CHROMIUM if _os.path.exists(_SYSTEM_CHROMIUM) else None
+
 
 def get_usd_to_brl() -> float:
     """Fetch live USD→BRL rate via frankfurter.app. Falls back to hardcoded value."""
@@ -218,7 +224,7 @@ async def _generic_async(
     print(f"  Buscando: {location} ({checkin} → {checkout}, {adults} adultos)...", file=sys.stderr)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(executable_path=CHROMIUM_PATH) if CHROMIUM_PATH else await p.chromium.launch()
         context = await browser.new_context(
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
@@ -272,7 +278,7 @@ async def _specific_async(
     print(f"  Buscando hotel específico: {hotel_name} ({checkin} → {checkout})...", file=sys.stderr)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(executable_path=CHROMIUM_PATH) if CHROMIUM_PATH else await p.chromium.launch()
         context = await browser.new_context(
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
