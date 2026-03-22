@@ -68,13 +68,14 @@ def format_result(res: dict) -> str:
     for i, h in enumerate(hotels[:10], 1):
         per_night_brl = h["price_per_night_brl"]
         per_night_usd = h["price_per_night_usd"]
-        total_brl = per_night_brl * n
+        total_brl = h.get("total_brl") or round(per_night_brl * n, 0)
         rating = h.get("rating")
+        tax_tag = " c/impostos" if h.get("taxes_included") else ""
 
         lines.append(f"  {i:2}. {h['name']}")
         rating_str = f"{stars_str(rating)} {rating:.1f}" if rating else "sem avaliação"
         lines.append(f"      {rating_str}  |  {brl(per_night_brl)}/noite  ({usd(per_night_usd)})")
-        lines.append(f"      Total {n}n: {brl(total_brl)}")
+        lines.append(f"      Total {n}n: {brl(total_brl)}{tax_tag}")
 
     lines.append("")
     cheapest = min(hotels[:10], key=lambda x: x["price_per_night_brl"])

@@ -86,15 +86,20 @@ async def _accept_consent(page) -> None:
 
 def _build_search_url(location: str, checkin: str, checkout: str, adults: int) -> str:
     loc = location.replace(" ", "+").replace(",", "%2C")
+    # checkin/checkout use YYYY-MM-DD format (confirmed working by Booking.com)
+    # sb_price_type=total + type=total → show total price including taxes
     return (
         f"{BASE_URL}/searchresults.html"
         f"?ss={loc}"
         f"&checkin={checkin}"
         f"&checkout={checkout}"
         f"&group_adults={adults}"
+        f"&group_children=0"
         f"&no_rooms=1"
         f"&selected_currency=BRL"
         f"&lang=pt-br"
+        f"&sb_price_type=total"
+        f"&type=total"
         f"&order=popularity"
     )
 
@@ -164,8 +169,10 @@ async def _extract_hotels_from_page(page, limit: int, min_stars: float, usd_to_b
             if price_brl is None:
                 continue
 
-            # Booking.com shows per-night price in search results
-            price_per_night_brl = price_brl
+            # With sb_price_type=total, Booking.com shows the TOTAL for the stay.
+            # Divide by number of nights to get per-night price.
+            total_brl = price_brl
+            price_per_night_brl = round(price_brl / n, 2) if n > 0 else price_brl
             price_per_night_usd = round(price_per_night_brl / usd_to_brl, 2)
 
             # Apply rating filter
@@ -184,8 +191,9 @@ async def _extract_hotels_from_page(page, limit: int, min_stars: float, usd_to_b
             hotels.append({
                 "name": name,
                 "rating": rating,
-                "price_per_night_brl": round(price_per_night_brl, 2),
+                "price_per_night_brl": price_per_night_brl,
                 "price_per_night_usd": price_per_night_usd,
+                "total_brl": round(total_brl, 2),
                 "url": hotel_url,
                 "taxes_included": True,
             })
