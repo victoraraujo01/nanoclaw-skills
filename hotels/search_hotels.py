@@ -353,14 +353,39 @@ async def _specific_async(
         await _accept_consent(page)
         await page.wait_for_timeout(3000)
 
-        # Extract all R$ prices from the hotel page; take the minimum valid one
+        # Extract current (discounted) total prices from the room table.
+        # Priority: look for "Preço atual R$ X" pattern (discounted price after strikethrough).
+        # Fallback: take all prices from price elements and use minimum.
         page_text = await page.evaluate("() => document.body.innerText")
-        all_prices = []
-        for m in re.finditer(r'R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
+
+        # Strategy 1: extract "Preço atual R$ X" — the real price after discount
+        current_prices = []
+        for m in re.finditer(r'Preço atual R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
             val = parse_brl(m.group(1))
-            # Reasonable range: per-night R$150 to R$50k, or total R$300 to R$200k
-            if val and 300 <= val <= 200_000:
-                all_prices.append(val)
+            if val and 500 <= val <= 500_000:
+                current_prices.append(val)
+
+        # Strategy 2: from price display elements — pick the smaller of each pair (original vs atual)
+        price_els = await page.query_selector_all('[class*="price"]')
+        element_prices = []
+        for el in price_els:
+            text = (await el.inner_text()).replace('\xa0', '').replace('\u202f', '')
+            found = []
+            for m in re.finditer(r'R\$\s*([\d.,]+)', text):
+                val = parse_brl(m.group(1))
+                if val and 500 <= val <= 500_000:
+                    found.append(val)
+            if found:
+                element_prices.append(min(found))  # take the lower (current) price per element
+
+        all_prices = current_prices or element_prices
+
+        # Fallback: all R$ values in page text
+        if not all_prices:
+            for m in re.finditer(r'R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
+                val = parse_brl(m.group(1))
+                if val and 500 <= val <= 500_000:
+                    all_prices.append(val)
 
         await browser.close()
 
@@ -374,21 +399,10 @@ async def _specific_async(
                              "total_brl": 0, "error": "preço não encontrado", "taxes_included": True}],
             }
 
-        # The minimum price on the hotel page is either per-night or total for stay.
-        # With sb_price_type=total, total prices appear; pick minimum and try to identify unit.
-        min_price = min(all_prices)
-
-        # Heuristic: if min_price is consistent with a per-night rate (< total/2), treat as total
-        # otherwise treat as per-night. Simpler: if min_price * n exists in prices, it's per-night.
-        total_brl = min_price
-        per_night_brl = round(min_price / n, 2) if n > 0 else min_price
-
-        # If a price equal to min_price * n also appears → min_price is per-night
-        expected_total = round(min_price * n, -1)  # round to nearest 10
-        totals_on_page = [v for v in all_prices if abs(v - expected_total) < expected_total * 0.05]
-        if totals_on_page:
-            per_night_brl = min_price
-            total_brl = round(min_price * n, 2)
+        # With sb_price_type=total the prices are totals for the stay.
+        # Take minimum total and compute per-night.
+        total_brl = min(all_prices)
+        per_night_brl = round(total_brl / n, 2) if n > 0 else total_brl
 
         hotels = [{
             "name": name_found,
