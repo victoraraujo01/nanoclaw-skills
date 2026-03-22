@@ -1,16 +1,22 @@
 ---
 name: hotels
-description: Search Google Hotels for real prices — direct one-off queries or periodic watchlist tracking. Use when user asks about hotel prices, accommodation costs, or says /hotels.
+description: Search Booking.com for hotel prices in BRL with taxes included — direct one-off queries or periodic watchlist tracking. Use when user asks about hotel prices, accommodation costs, or says /hotels.
 user-invocable: true
 allowed-tools: [Bash, Read, Write, Edit]
 ---
 
-# Google Hotels Price Tracker
+# Booking.com Hotel Price Tracker
 
+Source: **Booking.com**. Prices in BRL with taxes included.
 Two modes: **direct query** (instant, one-off) and **watchlist** (saved, periodic checks).
 
 The search engine is `/home/node/.claude/skills/hotels/search_hotels.py`.
 The watchlist is stored in `hotels.json` at the project root.
+
+**Important:** Playwright + Chromium required. If missing, run:
+```bash
+python3 -m playwright install chromium
+```
 
 ---
 
@@ -24,7 +30,7 @@ Use this when the user wants immediate hotel prices for a specific destination a
 - "buscar pousadas em Cartagena novembro, casal"
 - "pesquisar hotéis Toscana 11-15 nov mínimo 4 estrelas"
 
-### Run a direct query:
+### Run a direct query (by location):
 ```bash
 python3 /home/node/.claude/skills/hotels/search_hotels.py \
   --location "Rome, Italy" \
@@ -36,12 +42,26 @@ python3 /home/node/.claude/skills/hotels/search_hotels.py \
   | python3 /home/node/.claude/skills/hotels/format_whatsapp.py
 ```
 
+### Run a specific hotel search (by name):
+
+Use this when the user wants a specific hotel that may not appear in generic results (boutique hotels, resorts, etc.):
+
+```bash
+python3 /home/node/.claude/skills/hotels/search_hotels.py \
+  --hotel "Bastión Luxury Hotel Cartagena" \
+  --checkin "2026-11-08" \
+  --checkout "2026-11-12" \
+  --adults 2 \
+  | python3 /home/node/.claude/skills/hotels/format_whatsapp.py
+```
+
 Parameters:
 - `--location`: City or region name (e.g. "Riviera Maya", "Cartagena, Colombia", "Tuscany, Italy")
+- `--hotel`: Specific hotel name — use when user asks about a particular hotel
 - `--checkin` / `--checkout`: Dates in YYYY-MM-DD format
 - `--adults`: Number of adult guests (default: 2)
-- `--min-stars`: Minimum Google rating to include (default: 0.0, use 4.0 for quality hotels)
-- `--limit`: Max hotels to retrieve (default: 20)
+- `--min-stars`: Minimum rating to include (default: 0.0, use 4.0 for quality hotels)
+- `--limit`: Max hotels to retrieve (default: 15)
 - `--label`: Custom label shown in output (optional, defaults to location)
 
 ### Also generate PDF:
@@ -117,7 +137,7 @@ Wrap output in triple backticks for monospace rendering:
   2026-11-08 → 2026-11-11  (3 noites)  2 adultos
   Câmbio: 1 USD = R$5.19
 └─────────────────────────────────┘
-  Filtro: 4.0★ mínimo  |  Fonte: Google Hotels
+  Filtro: 4.0★ mínimo  |  Fonte: Booking.com  c/ impostos
 
    1. Palazzo Navona Hotel
       ★★★★½ 4.6  |  R$1.789/noite  (US$345)
@@ -158,13 +178,13 @@ Prices are in BRL (converted from USD at the rate in search_hotels.py). Update `
 
 ## Limitations
 
-- Google Hotels may not show all boutique/small hotels (e.g. agriturismo with few rooms)
-- Prices are from Google Hotels index and may differ from direct booking sites
-- Always recommend the user verify final price on the hotel's site before committing
-- `fast-hotels` requires: `pip install fast-hotels --break-system-packages`
+- Generic `--location` search returns most popular hotels on Booking.com — boutique/resort hotels may not appear. Use `--hotel` for specific properties.
+- Prices shown are per night with taxes included (as displayed by Booking.com without login)
+- Logged-in users with Genius status see lower prices — the scraper cannot replicate those discounts
+- Always recommend the user verify final price on Booking.com before committing
 
 ## Installation check:
 ```bash
-python3 -c "from fast_hotels.hotels_impl import HotelData; print('ok')" 2>&1
-# If error: pip install fast-hotels --break-system-packages
+python3 -c "from playwright.sync_api import sync_playwright; print('ok')" 2>&1
+# If error: pip install playwright --break-system-packages && python3 -m playwright install chromium
 ```
