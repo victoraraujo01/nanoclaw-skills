@@ -353,66 +353,78 @@ async def _specific_async(
         await _accept_consent(page)
         await page.wait_for_timeout(3000)
 
-        # Extract current (discounted) total prices from the room table.
-        # Priority: look for "Preço atual R$ X" pattern (discounted price after strikethrough).
-        # Fallback: take all prices from price elements and use minimum.
-        page_text = await page.evaluate("() => document.body.innerText")
+        # Extract room types with discounted prices from the room table.
+        # Each room row has a price cell with "Preço atual R$ X" (discounted) pattern.
+        # We extract each room type name + its current price, building a per-room breakdown.
+        room_rows = await page.query_selector_all('tr.js-rt-block-row, tr[id*="rt-block"]')
+        rooms_data = []
 
-        # Strategy 1: extract "Preço atual R$ X" — the real price after discount
-        current_prices = []
-        for m in re.finditer(r'Preço atual R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
-            val = parse_brl(m.group(1))
-            if val and 500 <= val <= 500_000:
-                current_prices.append(val)
+        for row in room_rows:
+            # Room name
+            name_el = await row.query_selector('.hprt-roomtype-icon-link span, .hprt-roomtype-icon-link')
+            room_name = (await name_el.inner_text()).strip() if name_el else None
 
-        # Strategy 2: from price display elements — pick the smaller of each pair (original vs atual)
-        price_els = await page.query_selector_all('[class*="price"]')
-        element_prices = []
-        for el in price_els:
-            text = (await el.inner_text()).replace('\xa0', '').replace('\u202f', '')
-            found = []
-            for m in re.finditer(r'R\$\s*([\d.,]+)', text):
-                val = parse_brl(m.group(1))
-                if val and 500 <= val <= 500_000:
-                    found.append(val)
-            if found:
-                element_prices.append(min(found))  # take the lower (current) price per element
+            # Price cell — prefer discounted price, fall back to first price
+            price_cell = await row.query_selector('td.hprt-table-cell-price')
+            room_price = None
+            if price_cell:
+                cell_text = (await price_cell.inner_text()).replace('\xa0', '').replace('\u202f', '')
+                m = re.search(r'Preço atual R\$\s*([\d.,]+)', cell_text)
+                if m:
+                    room_price = parse_brl(m.group(1))
+                else:
+                    m2 = re.search(r'R\$\s*([\d.,]+)', cell_text)
+                    if m2:
+                        room_price = parse_brl(m2.group(1))
 
-        all_prices = current_prices or element_prices
-
-        # Fallback: all R$ values in page text
-        if not all_prices:
-            for m in re.finditer(r'R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
-                val = parse_brl(m.group(1))
-                if val and 500 <= val <= 500_000:
-                    all_prices.append(val)
+            if room_name and room_price and 500 <= room_price <= 500_000:
+                rooms_data.append((room_name, room_price))
 
         await browser.close()
 
-        if not all_prices:
-            return {
-                "mode": "specific", "source": "Booking.com",
-                "query": {"hotel": hotel_name, "checkin": checkin, "checkout": checkout, "adults": adults},
-                "nights": n, "usd_to_brl": usd_to_brl,
-                "hotels": [{"name": name_found, "rating": rating_found,
-                             "price_per_night_brl": 0, "price_per_night_usd": 0,
-                             "total_brl": 0, "error": "preço não encontrado", "taxes_included": True}],
-            }
-
-        # With sb_price_type=total the prices are totals for the stay.
-        # Take minimum total and compute per-night.
-        total_brl = min(all_prices)
-        per_night_brl = round(total_brl / n, 2) if n > 0 else total_brl
-
-        hotels = [{
-            "name": name_found,
-            "rating": rating_found,
-            "price_per_night_brl": per_night_brl,
-            "price_per_night_usd": round(per_night_brl / usd_to_brl, 2),
-            "total_brl": total_brl,
-            "url": hotel_url,
-            "taxes_included": True,
-        }]
+        # Build hotel list: one entry per room type, sorted by price
+        if rooms_data:
+            rooms_data.sort(key=lambda x: x[1])
+            hotels = []
+            for room_name, total_room_brl in rooms_data:
+                pn = round(total_room_brl / n, 2) if n > 0 else total_room_brl
+                hotels.append({
+                    "name": f"{name_found} — {room_name}",
+                    "rating": rating_found,
+                    "price_per_night_brl": pn,
+                    "price_per_night_usd": round(pn / usd_to_brl, 2),
+                    "total_brl": total_room_brl,
+                    "url": hotel_url,
+                    "taxes_included": True,
+                })
+        else:
+            # Fallback: single entry with minimum page price
+            all_prices = []
+            page_text = await page.evaluate("() => document.body.innerText") if not rooms_data else ""
+            for m in re.finditer(r'Preço atual R\$\s*([\d.,]+)', page_text.replace('\xa0', '')):
+                val = parse_brl(m.group(1))
+                if val and 500 <= val <= 500_000:
+                    all_prices.append(val)
+            if not all_prices:
+                return {
+                    "mode": "specific", "source": "Booking.com",
+                    "query": {"hotel": hotel_name, "checkin": checkin, "checkout": checkout, "adults": adults},
+                    "nights": n, "usd_to_brl": usd_to_brl,
+                    "hotels": [{"name": name_found, "rating": rating_found,
+                                 "price_per_night_brl": 0, "price_per_night_usd": 0,
+                                 "total_brl": 0, "error": "preço não encontrado", "taxes_included": True}],
+                }
+            total_brl = min(all_prices)
+            per_night_brl = round(total_brl / n, 2) if n > 0 else total_brl
+            hotels = [{
+                "name": name_found,
+                "rating": rating_found,
+                "price_per_night_brl": per_night_brl,
+                "price_per_night_usd": round(per_night_brl / usd_to_brl, 2),
+                "total_brl": total_brl,
+                "url": hotel_url,
+                "taxes_included": True,
+            }]
 
     return {
         "mode": "specific",
