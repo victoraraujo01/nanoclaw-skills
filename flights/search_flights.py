@@ -22,6 +22,54 @@ except ImportError:
     sys.exit(1)
 
 try:
+    from fast_flights import parser as _ff_parser
+    from fast_flights.parser import MetaList as _MetaList
+    from fast_flights.model import (
+        Alliance as _Alliance, Airline as _Airline, Flights as _Flights,
+        CarbonEmission as _CE, JsMetadata as _Meta,
+        Airport as _Airport, SimpleDatetime as _SDT, SingleFlight as _SF,
+    )
+    import rjsonc as _rjsonc
+
+    def _patched_parse_js(js):
+        json_str = js.split('data:', 1)[1].rsplit(',', 1)[0]
+        data = _rjsonc.loads(json_str)
+        alliances, airlines_list = [], []
+        for code, name in data[7][1][0]:
+            alliances.append(_Alliance(code=code, name=name))
+        for code, name in data[7][1][1]:
+            airlines_list.append(_Airline(code=code, name=name))
+        meta = _Meta(alliances=alliances, airlines=airlines_list)
+        flights = _MetaList()
+        for k in data[3][0]:
+            if not k[1] or not k[1][0]:  # skip entries without price data
+                continue
+            flight = k[0]
+            price = k[1][0][1]
+            sg_flights = []
+            for sf in flight[2]:
+                sg_flights.append(_SF(
+                    from_airport=_Airport(code=sf[3], name=sf[4]),
+                    to_airport=_Airport(code=sf[6], name=sf[5]),
+                    departure=_SDT(date=sf[20], time=sf[8]),
+                    arrival=_SDT(date=sf[21], time=sf[10]),
+                    duration=sf[11],
+                    plane_type=sf[17],
+                ))
+            extras = flight[22]
+            flights.append(_Flights(
+                type=flight[0], price=price, airlines=flight[1],
+                flights=sg_flights,
+                carbon=_CE(typical_on_route=extras[8], emission=extras[7]),
+            ))
+        flights.metadata = meta
+        return flights
+
+    _ff_parser.parse_js = _patched_parse_js
+except Exception:
+    pass  # If patch fails, fall back to default behavior
+
+try:
     import primp as _primp
 
     def _patched_fetch_html(q, /, *, proxy=None, integration=None):
@@ -120,6 +168,8 @@ def query_one(trip: dict, combo: dict) -> list:
 
     results = []
     for fl in result:
+        if not fl.flights:
+            continue
         total_duration = sum(f.duration for f in fl.flights)
         first_leg = fl.flights[0]
         last_leg = fl.flights[-1]

@@ -118,6 +118,11 @@ def format_summary(data):
             trip['by_combination'],
             key=lambda x: x['best_overall']['price_numeric']
         )
+        if not combos:
+            route = f"{trip['origin']}->{trip['destination']}"
+            n_tot = trip['total_combinations']
+            blocks.append(f"⚠️ {route}: nenhum resultado ({n_tot} combinacoes falharam)")
+            continue
         best  = combos[0]
         route = f"{trip['origin']}->{trip['destination']}"
         label = trip['label'].split('-')[-1].strip()
